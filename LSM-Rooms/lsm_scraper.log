@@ -1,0 +1,195 @@
+2025-04-08 01:07:02,619 - INFO - Starting LSM scraper...
+2025-04-08 01:07:02,619 - INFO - Scraping live website
+2025-04-08 01:07:02,619 - INFO - Fetching building list...
+2025-04-08 01:07:03,099 - INFO - Found 36 buildings
+2025-04-08 01:07:03,100 - INFO - Processing building: AB - AB Astronomy and Astrophysics
+2025-04-08 01:07:03,374 - INFO - Processing building: AP - AP Anthropology Building
+2025-04-08 01:07:03,654 - INFO - Processing building: BA - BA Bahen Centre Information Tech
+2025-04-08 01:07:03,889 - INFO - Processing building: BF - BF Bancroft Building
+2025-04-08 01:07:04,132 - INFO - Processing building: BL - BL Claude T. Bissell Building
+2025-04-08 01:07:04,398 - INFO - Processing building: EP - EP Stewart Building
+2025-04-08 01:07:04,644 - INFO - Processing building: ES - ES Earth Sciences Centre
+2025-04-08 01:07:04,885 - INFO - Processing building: EX - EX Exam Centre
+2025-04-08 01:07:05,143 - INFO - Processing building: FE - FE Bloor Street West-371
+2025-04-08 01:07:05,378 - INFO - Processing building: GB - GB Galbraith Building
+2025-04-08 01:07:05,637 - INFO - Processing building: HA - HA Haultain Building
+2025-04-08 01:07:05,905 - INFO - Processing building: HS - HS Health Sciences Building
+2025-04-08 01:07:06,142 - INFO - Processing building: IN - IN Innis College
+2025-04-08 01:07:06,374 - INFO - Processing building: KP - KP Koffler House
+2025-04-08 01:07:06,663 - INFO - Processing building: MB - MB Lassonde Mining Building
+2025-04-08 01:07:06,903 - INFO - Processing building: MC - MC Mechanical Engineering Bldg
+2025-04-08 01:07:07,178 - INFO - Processing building: MP - MP McLennan Physical Laboratories
+2025-04-08 01:07:07,460 - INFO - Processing building: MS - MS Medical Sciences Building
+2025-04-08 01:07:07,735 - INFO - Processing building: MY - MY Myhal Centre MCEIE
+2025-04-08 01:07:07,987 - INFO - Processing building: NL - NL C David Naylor Building
+2025-04-08 01:07:08,253 - INFO - Processing building: OI - OI O.I.S.E.
+2025-04-08 01:07:08,512 - INFO - Processing building: PB - PB Leslie Dan Pharmacy Building
+2025-04-08 01:07:08,774 - INFO - Processing building: RL - RL Robarts Library Building
+2025-04-08 01:07:09,023 - INFO - Processing building: RU - RU Rehabilitation Sciences Bdg
+2025-04-08 01:07:09,309 - INFO - Processing building: RW - RW Ramsay Wright Laboratories
+2025-04-08 01:07:09,542 - INFO - Processing building: SF - SF Sandford Fleming Building
+2025-04-08 01:07:09,822 - INFO - Processing building: SK - SK Social Work, Faculty of
+2025-04-08 01:07:10,086 - INFO - Processing building: SS - SS Sidney Smith Hall
+2025-04-08 01:07:10,308 - INFO - Processing building: SU - SU Student Commons
+2025-04-08 01:07:10,626 - INFO - Processing building: TC - TC Trinity College
+2025-04-08 01:07:10,938 - INFO - Processing building: UC - UC University College
+2025-04-08 01:07:11,199 - INFO - Processing building: WB - WB Wallberg Building
+2025-04-08 01:07:11,483 - INFO - Processing building: WE - WE Wetmore Hall-New College
+2025-04-08 01:07:11,713 - INFO - Processing building: WI - WI Wilson Hall-New College
+2025-04-08 01:07:11,983 - INFO - Processing building: WO - WO Woodsworth College Residence
+2025-04-08 01:07:12,273 - INFO - Processing building: WW - WW Woodsworth College
+2025-04-08 01:07:12,566 - INFO - Scraping completed! Data saved to room_information.json
+2025-04-08 01:13:30,627 - INFO - Starting LSM scraper...
+2025-04-08 01:13:30,627 - INFO - Scraping live website
+2025-04-08 01:13:30,627 - INFO - Fetching building list...
+2025-04-08 01:13:31,094 - INFO - Found 36 buildings
+2025-04-08 01:13:31,094 - INFO - Processing building: AB - AB Astronomy and Astrophysics
+2025-04-08 01:13:31,355 - INFO - Processing building: AP - AP Anthropology Building
+2025-04-08 01:13:31,627 - INFO - Processing building: BA - BA Bahen Centre Information Tech
+2025-04-08 01:13:31,875 - INFO - Processing building: BF - BF Bancroft Building
+2025-04-08 01:13:32,117 - INFO - Processing building: BL - BL Claude T. Bissell Building
+2025-04-08 01:13:32,354 - INFO - Processing building: EP - EP Stewart Building
+2025-04-08 01:13:32,607 - INFO - Processing building: ES - ES Earth Sciences Centre
+2025-04-08 01:13:32,869 - INFO - Processing building: EX - EX Exam Centre
+2025-04-08 01:13:33,152 - INFO - Processing building: FE - FE Bloor Street West-371
+2025-04-08 01:13:33,398 - INFO - Processing building: GB - GB Galbraith Building
+2025-04-08 01:13:33,650 - INFO - Processing building: HA - HA Haultain Building
+2025-04-08 01:13:33,931 - INFO - Processing building: HS - HS Health Sciences Building
+2025-04-08 01:13:34,187 - INFO - Processing building: IN - IN Innis College
+2025-04-08 01:13:34,480 - INFO - Processing building: KP - KP Koffler House
+2025-04-08 01:13:34,709 - INFO - Processing building: MB - MB Lassonde Mining Building
+2025-04-08 01:13:34,929 - INFO - Processing building: MC - MC Mechanical Engineering Bldg
+2025-04-08 01:13:35,168 - INFO - Processing building: MP - MP McLennan Physical Laboratories
+2025-04-08 01:13:35,431 - INFO - Processing building: MS - MS Medical Sciences Building
+2025-04-08 01:13:35,671 - INFO - Processing building: MY - MY Myhal Centre MCEIE
+2025-04-08 01:13:35,906 - INFO - Processing building: NL - NL C David Naylor Building
+2025-04-08 01:13:36,144 - INFO - Processing building: OI - OI O.I.S.E.
+2025-04-08 01:13:36,403 - INFO - Processing building: PB - PB Leslie Dan Pharmacy Building
+2025-04-08 01:13:36,638 - INFO - Processing building: RL - RL Robarts Library Building
+2025-04-08 01:13:36,889 - INFO - Processing building: RU - RU Rehabilitation Sciences Bdg
+2025-04-08 01:13:37,134 - INFO - Processing building: RW - RW Ramsay Wright Laboratories
+2025-04-08 01:13:37,388 - INFO - Processing building: SF - SF Sandford Fleming Building
+2025-04-08 01:13:37,651 - INFO - Processing building: SK - SK Social Work, Faculty of
+2025-04-08 01:13:37,886 - INFO - Processing building: SS - SS Sidney Smith Hall
+2025-04-08 01:13:38,108 - INFO - Processing building: SU - SU Student Commons
+2025-04-08 01:13:38,374 - INFO - Processing building: TC - TC Trinity College
+2025-04-08 01:13:38,619 - INFO - Processing building: UC - UC University College
+2025-04-08 01:13:38,947 - INFO - Processing building: WB - WB Wallberg Building
+2025-04-08 01:13:39,205 - INFO - Processing building: WE - WE Wetmore Hall-New College
+2025-04-08 01:13:39,441 - INFO - Processing building: WI - WI Wilson Hall-New College
+2025-04-08 01:13:39,744 - INFO - Processing building: WO - WO Woodsworth College Residence
+2025-04-08 01:13:39,970 - INFO - Processing building: WW - WW Woodsworth College
+2025-04-08 01:13:40,211 - INFO - Scraping completed! Data saved to room_information.json
+2025-04-08 01:22:04,257 - INFO - Starting LSM scraper...
+2025-04-08 01:22:04,257 - INFO - Scraping live website
+2025-04-08 01:22:04,257 - INFO - Fetching main page to extract all buildings...
+2025-04-08 01:22:04,724 - INFO - Found 36 buildings
+2025-04-08 01:22:04,724 - INFO - Processing building: AB - AB Astronomy and Astrophysics
+2025-04-08 01:22:04,994 - ERROR - Room selector not found for building AB
+2025-04-08 01:22:04,994 - WARNING - No rooms found for building AB
+2025-04-08 01:22:04,994 - INFO - Processing building: AP - AP Anthropology Building
+2025-04-08 01:22:05,232 - ERROR - Room selector not found for building AP
+2025-04-08 01:22:05,232 - WARNING - No rooms found for building AP
+2025-04-08 01:22:05,232 - INFO - Processing building: BA - BA Bahen Centre Information Tech
+2025-04-08 01:22:05,450 - ERROR - Room selector not found for building BA
+2025-04-08 01:22:05,450 - WARNING - No rooms found for building BA
+2025-04-08 01:22:05,450 - INFO - Processing building: BF - BF Bancroft Building
+2025-04-08 01:22:05,662 - ERROR - Room selector not found for building BF
+2025-04-08 01:22:05,663 - WARNING - No rooms found for building BF
+2025-04-08 01:22:05,663 - INFO - Processing building: BL - BL Claude T. Bissell Building
+2025-04-08 01:22:05,869 - ERROR - Room selector not found for building BL
+2025-04-08 01:22:05,870 - WARNING - No rooms found for building BL
+2025-04-08 01:22:05,870 - INFO - Processing building: EP - EP Stewart Building
+2025-04-08 01:22:06,089 - ERROR - Room selector not found for building EP
+2025-04-08 01:22:06,089 - WARNING - No rooms found for building EP
+2025-04-08 01:22:06,089 - INFO - Processing building: ES - ES Earth Sciences Centre
+2025-04-08 01:22:06,334 - ERROR - Room selector not found for building ES
+2025-04-08 01:22:06,334 - WARNING - No rooms found for building ES
+2025-04-08 01:22:06,334 - INFO - Processing building: EX - EX Exam Centre
+2025-04-08 01:22:06,543 - ERROR - Room selector not found for building EX
+2025-04-08 01:22:06,544 - WARNING - No rooms found for building EX
+2025-04-08 01:22:06,544 - INFO - Processing building: FE - FE Bloor Street West-371
+2025-04-08 01:22:06,748 - ERROR - Room selector not found for building FE
+2025-04-08 01:22:06,748 - WARNING - No rooms found for building FE
+2025-04-08 01:22:06,748 - INFO - Processing building: GB - GB Galbraith Building
+2025-04-08 01:22:06,983 - ERROR - Room selector not found for building GB
+2025-04-08 01:22:06,983 - WARNING - No rooms found for building GB
+2025-04-08 01:22:06,983 - INFO - Processing building: HA - HA Haultain Building
+2025-04-08 01:22:07,200 - ERROR - Room selector not found for building HA
+2025-04-08 01:22:07,201 - WARNING - No rooms found for building HA
+2025-04-08 01:22:07,201 - INFO - Processing building: HS - HS Health Sciences Building
+2025-04-08 01:22:07,439 - ERROR - Room selector not found for building HS
+2025-04-08 01:22:07,439 - WARNING - No rooms found for building HS
+2025-04-08 01:22:07,440 - INFO - Processing building: IN - IN Innis College
+2025-04-08 01:22:07,665 - ERROR - Room selector not found for building IN
+2025-04-08 01:22:07,666 - WARNING - No rooms found for building IN
+2025-04-08 01:22:07,666 - INFO - Processing building: KP - KP Koffler House
+2025-04-08 01:22:07,893 - ERROR - Room selector not found for building KP
+2025-04-08 01:22:07,893 - WARNING - No rooms found for building KP
+2025-04-08 01:22:07,894 - INFO - Processing building: MB - MB Lassonde Mining Building
+2025-04-08 01:22:08,164 - ERROR - Room selector not found for building MB
+2025-04-08 01:22:08,165 - WARNING - No rooms found for building MB
+2025-04-08 01:22:08,165 - INFO - Processing building: MC - MC Mechanical Engineering Bldg
+2025-04-08 01:22:08,381 - ERROR - Room selector not found for building MC
+2025-04-08 01:22:08,381 - WARNING - No rooms found for building MC
+2025-04-08 01:22:08,381 - INFO - Processing building: MP - MP McLennan Physical Laboratories
+2025-04-08 01:22:08,592 - ERROR - Room selector not found for building MP
+2025-04-08 01:22:08,592 - WARNING - No rooms found for building MP
+2025-04-08 01:22:08,592 - INFO - Processing building: MS - MS Medical Sciences Building
+2025-04-08 01:22:08,804 - ERROR - Room selector not found for building MS
+2025-04-08 01:22:08,804 - WARNING - No rooms found for building MS
+2025-04-08 01:22:08,804 - INFO - Processing building: MY - MY Myhal Centre MCEIE
+2025-04-08 01:22:09,037 - ERROR - Room selector not found for building MY
+2025-04-08 01:22:09,037 - WARNING - No rooms found for building MY
+2025-04-08 01:22:09,037 - INFO - Processing building: NL - NL C David Naylor Building
+2025-04-08 01:22:09,268 - ERROR - Room selector not found for building NL
+2025-04-08 01:22:09,268 - WARNING - No rooms found for building NL
+2025-04-08 01:22:09,268 - INFO - Processing building: OI - OI O.I.S.E.
+2025-04-08 01:22:09,507 - ERROR - Room selector not found for building OI
+2025-04-08 01:22:09,507 - WARNING - No rooms found for building OI
+2025-04-08 01:22:09,507 - INFO - Processing building: PB - PB Leslie Dan Pharmacy Building
+2025-04-08 01:22:09,723 - ERROR - Room selector not found for building PB
+2025-04-08 01:22:09,724 - WARNING - No rooms found for building PB
+2025-04-08 01:22:09,724 - INFO - Processing building: RL - RL Robarts Library Building
+2025-04-08 01:22:09,928 - ERROR - Room selector not found for building RL
+2025-04-08 01:22:09,928 - WARNING - No rooms found for building RL
+2025-04-08 01:22:09,928 - INFO - Processing building: RU - RU Rehabilitation Sciences Bdg
+2025-04-08 01:22:10,133 - ERROR - Room selector not found for building RU
+2025-04-08 01:22:10,133 - WARNING - No rooms found for building RU
+2025-04-08 01:22:10,133 - INFO - Processing building: RW - RW Ramsay Wright Laboratories
+2025-04-08 01:22:10,327 - ERROR - Room selector not found for building RW
+2025-04-08 01:22:10,327 - WARNING - No rooms found for building RW
+2025-04-08 01:22:10,327 - INFO - Processing building: SF - SF Sandford Fleming Building
+2025-04-08 01:22:10,550 - ERROR - Room selector not found for building SF
+2025-04-08 01:22:10,550 - WARNING - No rooms found for building SF
+2025-04-08 01:22:10,550 - INFO - Processing building: SK - SK Social Work, Faculty of
+2025-04-08 01:22:10,750 - ERROR - Room selector not found for building SK
+2025-04-08 01:22:10,750 - WARNING - No rooms found for building SK
+2025-04-08 01:22:10,750 - INFO - Processing building: SS - SS Sidney Smith Hall
+2025-04-08 01:22:10,959 - ERROR - Room selector not found for building SS
+2025-04-08 01:22:10,959 - WARNING - No rooms found for building SS
+2025-04-08 01:22:10,959 - INFO - Processing building: SU - SU Student Commons
+2025-04-08 01:22:11,154 - ERROR - Room selector not found for building SU
+2025-04-08 01:22:11,154 - WARNING - No rooms found for building SU
+2025-04-08 01:22:11,154 - INFO - Processing building: TC - TC Trinity College
+2025-04-08 01:22:11,380 - ERROR - Room selector not found for building TC
+2025-04-08 01:22:11,380 - WARNING - No rooms found for building TC
+2025-04-08 01:22:11,380 - INFO - Processing building: UC - UC University College
+2025-04-08 01:22:11,639 - ERROR - Room selector not found for building UC
+2025-04-08 01:22:11,639 - WARNING - No rooms found for building UC
+2025-04-08 01:22:11,639 - INFO - Processing building: WB - WB Wallberg Building
+2025-04-08 01:22:11,875 - ERROR - Room selector not found for building WB
+2025-04-08 01:22:11,875 - WARNING - No rooms found for building WB
+2025-04-08 01:22:11,875 - INFO - Processing building: WE - WE Wetmore Hall-New College
+2025-04-08 01:22:12,076 - ERROR - Room selector not found for building WE
+2025-04-08 01:22:12,076 - WARNING - No rooms found for building WE
+2025-04-08 01:22:12,076 - INFO - Processing building: WI - WI Wilson Hall-New College
+2025-04-08 01:22:12,295 - ERROR - Room selector not found for building WI
+2025-04-08 01:22:12,295 - WARNING - No rooms found for building WI
+2025-04-08 01:22:12,295 - INFO - Processing building: WO - WO Woodsworth College Residence
+2025-04-08 01:22:12,581 - ERROR - Room selector not found for building WO
+2025-04-08 01:22:12,581 - WARNING - No rooms found for building WO
+2025-04-08 01:22:12,582 - INFO - Processing building: WW - WW Woodsworth College
+2025-04-08 01:22:12,790 - ERROR - Room selector not found for building WW
+2025-04-08 01:22:12,790 - WARNING - No rooms found for building WW
+2025-04-08 01:22:12,791 - INFO - Scraping completed! Data saved to room_information.json
