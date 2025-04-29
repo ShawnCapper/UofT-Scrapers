@@ -89,6 +89,17 @@ def parse_job_posting(html_content, filename):
                             job_data[field_key] = value.lower() == "yes"
                         else:
                             job_data[field_key] = value
+                    
+                    # Check for targeted programs
+                    if field_name == "targeted programs of study":
+                        # Split the text by line breaks and filter out empty lines
+                        programs = [prog.strip() for prog in value.split('\n') if prog.strip()]
+                        
+                        # Remove "View Targeted Programs" if it exists in the list
+                        programs = [prog for prog in programs if prog.lower() != "view targeted programs"]
+                        
+                        if programs:
+                            job_data["targeted_programs"] = programs
 
     # Extract application information
     app_info_panel = soup.select_one(".panel-heading:-soup-contains('Application Information') + .panel-body")
@@ -118,7 +129,15 @@ def parse_job_posting(html_content, filename):
 
                     field_key = mapping.get(field_name)
                     if field_key:
-                        job_data[field_key] = value
+                        if field_key == "documents_required":
+                            # Convert documents_required to an array
+                            # Split by commas, newlines, semicolons and "and" to separate documents
+                            docs_text = re.sub(r'\s*,\s*|\s*;\s*|\s+and\s+|\n+', '|', value)
+                            # Split by the pipe character we inserted and filter out empty strings
+                            docs_list = [doc.strip() for doc in docs_text.split('|') if doc.strip()]
+                            job_data[field_key] = docs_list
+                        else:
+                            job_data[field_key] = value
 
     # Extract company information
     company_info_panel = soup.select_one(".panel-heading:-soup-contains('Company Info') + .panel-body")
