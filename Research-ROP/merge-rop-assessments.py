@@ -43,9 +43,9 @@ def merge_course_assessments_with_sessions(courses_file, assessments_file, outpu
         json.dump(updated_courses_data, f, indent=2)
 
 if __name__ == "__main__":
-    courses_file = '../UofT-Scrapers/courses.json'
-    assessments_file = '../UofT-Scrapers/assessments.json'
-    output_file = '../UofT-Scrapers/courses_updated_with_sessions.json'
+    courses_file = '../OLD/courses.json'
+    assessments_file = '../OLD/assessments.json'
+    output_file = '../OLD/courses_updated_with_sessions.json'
 
     merge_course_assessments_with_sessions(courses_file, assessments_file, output_file)
     print(f"Merged data with session-specific assessments saved to {output_file}")
