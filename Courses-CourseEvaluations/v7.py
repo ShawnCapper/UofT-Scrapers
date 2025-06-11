@@ -1,3 +1,10 @@
+"""
+University of Toronto Course Evaluation Scraper - Enhanced for Multiple Table Formats (v7)
+Scrapes course evaluation data from course-evals.utoronto.ca
+Enhanced to handle different column structures from different divisions
+Improved pagination handling to avoid duplicate data when reaching the last page
+"""
+
 import time
 import json
 import csv
@@ -204,7 +211,6 @@ class UofTCourseEvaluationScraper:
                         self.driver.refresh()
                         time.sleep(5)
                         continue
-                        
             except Exception as e:
                 print(f"Error on first page attempt {retry + 1}: {e}")
                 if retry < max_retry_attempts - 1:
@@ -219,124 +225,283 @@ class UofTCourseEvaluationScraper:
         print("Failed to extract data from first page after all retry attempts")
         return []
     
+    def _get_pagination_info(self):
+        """
+        Extract pagination information from the page, including current page and total pages
+        Uses the pageMax attribute and pagination structure for accurate detection
+        
+        Returns:
+            dict: Dictionary containing current_page, total_pages, and other pagination info
+        """
+        pagination_info = {
+            'current_page': 1,
+            'total_pages': 1,
+            'has_next': False,
+            'has_prev': False
+        }
+        
+        try:
+            # Try to find the pagination container
+            pagination_container = self.driver.find_element(By.ID, "fbvGridPagingContentHolderLvl1")
+            
+            # Look for the page input field that shows current page
+            try:
+                page_input = pagination_container.find_element(By.ID, "gridPaging__getFbvGrid")
+                current_page = int(page_input.get_attribute("value"))
+                pagination_info['current_page'] = current_page
+                print(f"Current page from input field: {current_page}")
+            except Exception as e:
+                print(f"Could not get current page from input: {e}")
+            
+            # Priority 1: Try to get pageMax from the onkeypress attribute (most reliable)
+            try:
+                page_input = pagination_container.find_element(By.ID, "gridPaging__getFbvGrid")
+                onkeypress_attr = page_input.get_attribute("onkeypress")
+                if onkeypress_attr and "pageMax" in onkeypress_attr:
+                    # Extract pageMax value using regex
+                    match = re.search(r"'pageMax':\s*'(\d+)'", onkeypress_attr)
+                    if match:
+                        page_max = int(match.group(1))
+                        pagination_info['total_pages'] = page_max
+                        print(f"Total pages from pageMax attribute: {page_max}")
+                    else:
+                        # Try alternative pageMax pattern
+                        match = re.search(r'"pageMax":\s*"(\d+)"', onkeypress_attr)
+                        if match:
+                            page_max = int(match.group(1))
+                            pagination_info['total_pages'] = page_max
+                            print(f"Total pages from pageMax attribute (alt pattern): {page_max}")
+            except Exception as e:
+                print(f"Could not get pageMax from onkeypress: {e}")
+            
+            # Priority 2: Look for the total pages indicator (text after " / ")
+            try:
+                pagination_text = pagination_container.text
+                if " / " in pagination_text:
+                    # Extract the number after " / " which represents total pages
+                    parts = pagination_text.split(" / ")
+                    if len(parts) > 1:
+                        # The total pages should be the next number after " / "
+                        total_text = parts[1].strip()
+                        # Extract just the number (remove any trailing text)
+                        total_pages = int(total_text.split()[0])
+                        # Only use this if we didn't get pageMax (pageMax is more reliable)
+                        if pagination_info['total_pages'] == 1:
+                            pagination_info['total_pages'] = total_pages
+                            print(f"Total pages from pagination text: {total_pages}")
+                        else:
+                            print(f"Pagination text shows {total_pages}, but using pageMax value instead")
+            except Exception as e:
+                print(f"Could not get total pages from text: {e}")
+            
+            # Check if next/previous buttons are enabled
+            try:
+                next_button = pagination_container.find_element(By.XPATH, ".//input[@type='button' and @value='>']")
+                pagination_info['has_next'] = next_button.is_enabled()
+                
+                # Additional check: if current page equals total pages, we shouldn't have next
+                if pagination_info['current_page'] >= pagination_info['total_pages']:
+                    pagination_info['has_next'] = False
+                    print(f"Overriding has_next to False: current page {pagination_info['current_page']} >= total pages {pagination_info['total_pages']}")
+                    
+            except Exception as e:
+                print(f"Could not check next button status: {e}")
+            
+            try:
+                prev_button = pagination_container.find_element(By.XPATH, ".//input[@type='button' and @value='<']")
+                pagination_info['has_prev'] = prev_button.is_enabled()
+            except Exception as e:
+                print(f"Could not check previous button status: {e}")
+                
+        except Exception as e:
+            print(f"Error getting pagination info: {e}")
+        
+        return pagination_info
+
     def _scrape_all_pages_fixed(self):
         """
-        Scrape data from all pages using a fixed approach for UofT course evaluations.
-        Instead of using a max_pages limit, this method will continue scraping until
-        navigation to the next page fails twice consecutively, indicating that we've 
-        reached the end of available data.
+        Scrape data from all pages using improved pagination detection.
+        Uses the pagination structure to determine total pages and current position.
         
         Returns:
             list: Combined list of data from all pages
         """
         all_data = []
-        current_page = 1
-        has_more_pages = True
-        consecutive_failures = 0
         
-        # Loop through pages until we fail to navigate to the next page twice in a row
-        while has_more_pages:
-            print(f"\n--- Processing Page {current_page} ---")
+        # Get initial pagination info - this is crucial for determining total pages
+        pagination_info = self._get_pagination_info()
+        total_pages = pagination_info.get('total_pages', 1)
+        current_page = pagination_info.get('current_page', 1)
+        
+        print(f"Initial pagination info: Current page {current_page}, Total pages {total_pages}")
+        
+        # Store the data from the first page that we scraped during the retry logic
+        previous_data_hashes = set()
+        
+        # Loop through pages until we reach the last page
+        while current_page <= total_pages:
+            print(f"\n--- Processing Page {current_page}/{total_pages} ---")
+            
+            # Get current pagination state before processing
+            current_pagination = self._get_pagination_info()
+            actual_current_page = current_pagination.get('current_page', current_page)
+            actual_total_pages = current_pagination.get('total_pages', total_pages)
+            
+            # Update our understanding if pagination info has changed
+            if actual_current_page != current_page:
+                print(f"Pagination state updated: now on page {actual_current_page} (expected {current_page})")
+                current_page = actual_current_page
+            
+            if actual_total_pages != total_pages:
+                print(f"Total pages updated: {actual_total_pages} (was {total_pages})")
+                total_pages = actual_total_pages
             
             # Special handling for first page - ensure data table is loaded with retry logic
             if current_page == 1:
                 print("First page - ensuring data table is fully loaded with enhanced retry...")
                 current_page_data = self.scrape_first_page_with_retry()
-                
-                # Only process data for the first page here
-                # (subsequent pages will be handled in the navigation section)
-                if current_page_data:
-                    print(f"Found {len(current_page_data)} records on page {current_page}")
-                    all_data.extend(current_page_data)
-                    # Save data from the first page incrementally
-                    self.save_incremental_data(current_page_data, current_page)
-                else:
-                    print(f"No data found on page {current_page}")
             else:
-                # For pages after the first, data extraction is done after successful navigation
-                # to avoid duplicate processing
-                current_page_data = []
+                # Extract data for subsequent pages
+                current_page_data = self._extract_main_table()
             
-            # Store initial data from first record to verify page change
-            first_record_text = ""
-            if current_page_data and len(current_page_data) > 0:
-                first_record_text = str(current_page_data[0])
+            if current_page_data:
+                # Create a hash of the data to detect duplicates
+                data_hash = hash(str(sorted([str(row) for row in current_page_data])))
+                
+                if data_hash in previous_data_hashes:
+                    print(f"DUPLICATE DATA DETECTED on page {current_page}! This indicates we've reached the end or there's a navigation issue.")
+                    print("Stopping pagination to avoid infinite loop.")
+                    break
+                
+                previous_data_hashes.add(data_hash)
+                print(f"Found {len(current_page_data)} records on page {current_page}")
+                all_data.extend(current_page_data)
+                self.save_incremental_data(current_page_data, current_page)
+            else:
+                print(f"No data found on page {current_page}")
+                if current_page == 1:
+                    break  # If no data on first page, something is wrong
             
-            # Look for next button - SPECIFICALLY for the UofT course evaluation format
-            # This targets the button with onclick="__getFbvGrid(n);" value=">"
-            try:
-                # Wait for a moment to ensure page is fully loaded
-                time.sleep(2)
-                
-                # Find the '>' button that calls __getFbvGrid function
-                next_button = self.driver.find_element(By.XPATH, f"//input[@type='button' and @value='>' and contains(@onclick, '__getFbvGrid')]")
-                
-                if next_button:
-                    print(f"Found 'Next' button for page {current_page + 1}")
-                    
-                    # Get the onclick attribute to see which page it will navigate to
-                    onclick_attr = next_button.get_attribute('onclick')
-                    print(f"Next button onclick: {onclick_attr}")
-                    
-                    # Click the button using JavaScript (more reliable)
-                    self.driver.execute_script("arguments[0].click();", next_button)
-                    print(f"Clicked 'Next' button to navigate to page {current_page + 1}")
-                    
-                    # Wait for page to refresh
-                    time.sleep(3)
-                    
-                    # Verify page changed by checking if the data is different
-                    new_data = self._extract_main_table()
-                    new_first_record = str(new_data[0]) if new_data and len(new_data) > 0 else ""
-                    
-                    # Check for meaningful change between pages
-                    if new_first_record and new_first_record != first_record_text:
-                        print(f"Successfully navigated to page {current_page + 1}")
-                        current_page += 1
-                        consecutive_failures = 0  # Reset failure counter on success
-                        
-                        # Add new data only if we're sure it's from a new page
-                        print(f"Found {len(new_data)} records on new page {current_page}")
-                        all_data.extend(new_data)
-                        self.save_incremental_data(new_data, current_page)
-                    else:
-                        print("Navigation failed or reached end of data - page content didn't change")
-                        consecutive_failures += 1
-                        if consecutive_failures >= 2:
-                            print(f"Encountered {consecutive_failures} consecutive navigation failures - ending pagination")
-                            has_more_pages = False
-                        else:
-                            print(f"First navigation failure (attempt {consecutive_failures}/2) - will try again")
-                else:
-                    print("No 'Next' button found - reached the last page")
-                    consecutive_failures += 1
-                    if consecutive_failures >= 2:
-                        print(f"No 'Next' button found {consecutive_failures} times in a row - ending pagination")
-                        has_more_pages = False
-                    else:
-                        print(f"No 'Next' button (attempt {consecutive_failures}/2) - will try again")
-                    
-            except NoSuchElementException:
-                print("No 'Next' button found - reached the last page")
-                consecutive_failures += 1
-                if consecutive_failures >= 2:
-                    print(f"No 'Next' button found {consecutive_failures} times in a row - ending pagination")
-                    has_more_pages = False
-                else:
-                    print(f"No 'Next' button (attempt {consecutive_failures}/2) - will try again")
-                
-            except Exception as e:
-                print(f"Error during pagination: {e}")
-                traceback.print_exc()
-                consecutive_failures += 1
-                if consecutive_failures >= 2:
-                    print(f"Pagination errors occurred {consecutive_failures} times in a row - ending pagination")
-                    has_more_pages = False
-                else:
-                    print(f"Pagination error (attempt {consecutive_failures}/2) - will try again")
+            # Critical check: if we've reached the last page, stop here
+            if current_page >= total_pages:
+                print(f"Reached last page ({current_page}/{total_pages}) - stopping pagination")
+                break
+            
+            # Double-check pagination state before attempting navigation
+            pre_nav_pagination = self._get_pagination_info()
+            if not pre_nav_pagination.get('has_next', False):
+                print("Next button not available before navigation - reached the end")
+                break
+            
+            if pre_nav_pagination.get('current_page', current_page) >= pre_nav_pagination.get('total_pages', total_pages):
+                print("Already on last page according to pagination info - stopping")
+                break
+            
+            # Navigate to next page
+            navigation_successful = self._navigate_to_next_page(current_page, total_pages)
+            
+            if not navigation_successful:
+                print("Navigation to next page failed - stopping pagination")
+                break
+            
+            # Verify we actually moved to a new page
+            post_nav_pagination = self._get_pagination_info()
+            new_page_number = post_nav_pagination.get('current_page', current_page)
+            
+            if new_page_number <= current_page:
+                print(f"Page number didn't increase after navigation (still {new_page_number}) - likely reached the end")
+                break
+            
+            # Update current page for next iteration
+            current_page = new_page_number
         
-        print(f"\nCompleted scraping all {current_page} pages, found total {len(all_data)} records")
+        print(f"\nCompleted scraping all pages, found total {len(all_data)} records")
         return all_data
+
+    def _navigate_to_next_page(self, current_page, total_pages):
+        """
+        Navigate to the next page with robust error handling and verification
+        
+        Args:
+            current_page (int): Current page number
+            total_pages (int): Total number of pages
+            
+        Returns:
+            bool: True if navigation was successful, False otherwise
+        """
+        try:
+            print(f"Attempting to navigate from page {current_page} to page {current_page + 1}")
+            
+            # Find the next button using multiple strategies
+            next_button = None
+            
+            # Strategy 1: Find by onclick containing __getFbvGrid with the next page number
+            expected_next_page = current_page + 1
+            try:
+                next_button = self.driver.find_element(By.XPATH, f"//input[@type='button' and @value='>' and contains(@onclick, '__getFbvGrid({expected_next_page})')]")
+                print(f"Found next button with explicit page {expected_next_page}")
+            except NoSuchElementException:
+                pass
+            
+            # Strategy 2: Find any next button with '>' value
+            if not next_button:
+                try:
+                    next_button = self.driver.find_element(By.XPATH, "//input[@type='button' and @value='>' and contains(@onclick, '__getFbvGrid')]")
+                    print("Found next button with general selector")
+                except NoSuchElementException:
+                    pass
+            
+            # Strategy 3: Look within the pagination container
+            if not next_button:
+                try:
+                    pagination_container = self.driver.find_element(By.ID, "fbvGridPagingContentHolderLvl1")
+                    next_button = pagination_container.find_element(By.XPATH, ".//input[@type='button' and @value='>']")
+                    print("Found next button within pagination container")
+                except NoSuchElementException:
+                    pass
+            
+            if not next_button:
+                print("Could not find next button")
+                return False
+            
+            # Check if button is enabled
+            if not next_button.is_enabled():
+                print("Next button is disabled")
+                return False
+            
+            # Get the onclick attribute to understand what page it will navigate to
+            onclick_attr = next_button.get_attribute('onclick')
+            print(f"Next button onclick: {onclick_attr}")
+            
+            # Click the button
+            try:
+                self.driver.execute_script("arguments[0].click();", next_button)
+                print("Clicked next button using JavaScript")
+            except Exception as e:
+                print(f"JavaScript click failed, trying regular click: {e}")
+                try:
+                    next_button.click()
+                    print("Clicked next button using regular click")
+                except Exception as e2:
+                    print(f"Regular click also failed: {e2}")
+                    return False
+            
+            # Wait for page to load
+            print("Waiting for page to load after navigation...")
+            time.sleep(4)  # Give time for the page to load
+            
+            # Wait for the table to be present (indicating page has loaded)
+            try:
+                self.wait.until(EC.presence_of_element_located((By.TAG_NAME, "table")))
+                print("Table detected after navigation")
+            except TimeoutException:
+                print("Warning: Table not detected after navigation")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error during navigation: {e}")
+            return False
     
     def _analyze_table_structure(self, table):
         """
@@ -622,17 +787,8 @@ class UofTCourseEvaluationScraper:
                     cells = row.find_elements(By.TAG_NAME, "td")
                     max_cols = max(max_cols, len(cells))
                 
-                if max_cols > 0:
-                    headers = [f"Column_{i+1}" for i in range(max_cols)]
-                    print(f"Generated {max_cols} dynamic headers: {headers}")
-                else:
-                    # Ultimate fallback
-                    headers = [
-                        "Dept", "Division", "Course", "Last Name", "First Name", 
-                        "Term", "Year", "INS1", "INS2", "INS3", "INS4", "INS5", "INS6",
-                        "ARTSC1", "ARTSC2", "ARTSC3", "Number Invited", "Number Responses"
-                    ]
-                    print("Using fallback predefined headers")
+                headers = [f"Column_{i+1}" for i in range(max_cols)]
+                print(f"Generated {max_cols} dynamic headers: {headers}")
             
         except Exception as e:
             print(f"Error extracting headers: {e}")
