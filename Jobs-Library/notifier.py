@@ -1,207 +1,418 @@
-import requests
-import time
-from bs4 import BeautifulSoup
 import os
 import json
-import datetime
-import re
+import time
+import smtplib
+import logging
+import schedule
+import requests
+from datetime import datetime
+from email.message import EmailMessage
+from bs4 import BeautifulSoup
+from typing import Dict, Set, List, Optional
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('job_monitor.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
-def check_for_new_postings(vacancies_url, known_ids_file="known_postings.json"):
-    """
-    Checks the given library jobs vacancies page for new postings.
-    If new postings are found, returns a list of new IDs.
-    Otherwise, returns an empty list.
-    """
-    # Load previously known postings from JSON (if the file exists)
-    if os.path.exists(known_ids_file):
-        with open(known_ids_file, "r", encoding="utf-8") as f:
-            known_ids = json.load(f)
-    else:
-        known_ids = []
-
-    # Also check the archive.json for existing postings
-    archive_file = "archive.json"
-    archived_ids = set()
-    if os.path.exists(archive_file):
-        try:
-            with open(archive_file, "r", encoding="utf-8") as f:
-                archive_data = json.load(f)
-                archived_ids = {entry["id"] for entry in archive_data}
-        except (json.JSONDecodeError, KeyError):
-            print(f"Warning: Could not read IDs from {archive_file}")
-
-    # Combine both known and archived IDs
-    all_known_ids = set(known_ids) | archived_ids
-
-    # Fetch vacancies page
-    response = requests.get(vacancies_url, timeout=10)
-    if response.status_code != 200:
-        print(f"Failed to fetch vacancies page (Status: {response.status_code}).")
-        return []
-
-    soup = BeautifulSoup(response.text, "html.parser")
-
-    # Look for links to job postings
-    new_postings = []
-    view_links = soup.find_all("a", href=True)
-
-    # Pattern to extract posting IDs from URLs
-    url_pattern = re.compile(r'/posting/view/(\d+)')
-
-    for link in view_links:
-        href = link.get('href')
-        match = url_pattern.search(href)
-        if match:
-            posting_id = int(match.group(1))
-            if posting_id not in all_known_ids:
-                new_postings.append(posting_id)
-                print(f"Found new posting with ID: {posting_id}")
-
-    # Update local file if new postings are found
-    if new_postings:
-        all_postings = list(all_known_ids) + new_postings
-        with open(known_ids_file, "w", encoding="utf-8") as f:
-            json.dump(all_postings, f, indent=2)
-
-    return new_postings
-
-
-def scrape_posting(posting_id):
-    """
-    Scrape a single job posting by ID and save it to the valid_postings directory.
-    Returns the path to the saved HTML file.
-    """
-    output_dir = "valid_postings"
-    os.makedirs(output_dir, exist_ok=True)
-
-    base_url = "https://studentjobs.library.utoronto.ca/index.php/posting/view/{}"
-    url = base_url.format(posting_id)
-
-    try:
-        response = requests.get(url, timeout=10)
-
-        if response.status_code != 200:
-            print(f"Posting {posting_id} returned status code {response.status_code}")
-            return None
-
-        html_content = response.text
-
-        if "Invalid posting ID" in html_content:
-            print(f"Posting {posting_id} is invalid, skipping.")
-            return None
-
-        file_path = os.path.join(output_dir, f"posting_{posting_id}.html")
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(html_content)
-
-        print(f"Saved posting {posting_id} successfully.")
-        return file_path
-
-    except requests.RequestException as e:
-        print(f"Error fetching posting {posting_id}: {e}")
-        return None
-
-
-def extract_id_from_filename(file_path):
-    """
-    Extract the numeric id from the HTML file name.
-    For example, if the file name is "14.html" or "posting_14.html", it returns 14.
-    """
-    import re
-    base_name = os.path.splitext(os.path.basename(file_path))[0]
-    m = re.search(r'\d+', base_name)
-    if m:
-        return int(m.group())
-    return None
-
-
-def process_new_postings(html_files, archive_file="archive.json"):
-    """
-    Process the newly scraped HTML files and add them to the archive.
-    """
-    from parser import parse_html_file
-
-    # Load existing archive data if it exists
-    existing_data = []
-    existing_ids = set()
-    try:
-        with open(archive_file, "r", encoding="utf-8") as f:
-            existing_data = json.load(f)
-            existing_ids = {entry["id"] for entry in existing_data}
-        print(f"Loaded {len(existing_data)} existing postings from {archive_file}")
-    except (FileNotFoundError, json.JSONDecodeError):
-        print(f"No existing archive found at {archive_file} or invalid JSON. Creating new file.")
-
-    # Process the new HTML files
-    new_data = []
-    for html_file in html_files:
-        file_id = extract_id_from_filename(html_file)
-        if file_id is None:
-            print(f"Could not extract ID from {html_file}")
-            continue
-
-        if file_id not in existing_ids:
+class JobMonitor:
+    """Monitor UofT Libraries student job postings."""
+    
+    def __init__(self, config_file: str = 'job_monitor_config.json'):
+        """Initialize the job monitor with configuration."""
+        self.config_file = config_file
+        self.jobs_file = 'known_jobs.json'
+        self.base_url = "https://studentjobs.library.utoronto.ca/index.php/student/vacancies"
+        
+        # Load configuration
+        self.config = self.load_config()
+        
+        # Load known jobs
+        self.known_jobs = self.load_known_jobs()
+        
+    def load_config(self) -> Dict:
+        """Load email configuration from file."""
+        default_config = {
+            "email": {
+                "smtp_server": "smtp.gmail.com",
+                "smtp_port": 587,
+                "sender_email": "",
+                "sender_password": "",
+                "recipient_email": "",
+                "use_app_password": True
+            },
+            "monitoring": {
+                "check_interval_hours": 1,
+                "timeout_seconds": 30
+            }
+        }
+        
+        if os.path.exists(self.config_file):
             try:
-                posting_data = parse_html_file(html_file, file_id)
-                posting_data["html_folder"] = os.path.dirname(html_file)
-                posting_data["timestamp"] = datetime.datetime.now().isoformat()
-                new_data.append(posting_data)
-                print(f"Parsed new posting: {html_file} with ID: {file_id}")
+                with open(self.config_file, 'r') as f:
+                    config = json.load(f)
+                    # Merge with defaults to ensure all keys exist
+                    for key in default_config:
+                        if key not in config:
+                            config[key] = default_config[key]
+                        elif isinstance(default_config[key], dict):
+                            for subkey in default_config[key]:
+                                if subkey not in config[key]:
+                                    config[key][subkey] = default_config[key][subkey]
+                    return config
             except Exception as e:
-                print(f"Error parsing {html_file}: {e}")
+                logger.error(f"Error loading config: {e}")
+                
+        # Create default config file
+        with open(self.config_file, 'w') as f:
+            json.dump(default_config, f, indent=2)
+        
+        logger.info(f"Created default config file: {self.config_file}")
+        logger.info("Please update the email configuration before running.")
+        return default_config
+    
+    def load_known_jobs(self) -> Set[str]:
+        """Load previously seen job numbers."""
+        if os.path.exists(self.jobs_file):
+            try:
+                with open(self.jobs_file, 'r') as f:
+                    data = json.load(f)
+                    return set(data.get('job_numbers', []))
+            except Exception as e:
+                logger.error(f"Error loading known jobs: {e}")
+        return set()
+    
+    def save_known_jobs(self):
+        """Save known job numbers to file."""
+        try:
+            data = {
+                'job_numbers': list(self.known_jobs),
+                'last_updated': datetime.now().isoformat()
+            }
+            with open(self.jobs_file, 'w') as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            logger.error(f"Error saving known jobs: {e}")
+    
+    def scrape_current_jobs(self) -> Optional[Dict[str, Dict]]:
+        """Scrape current job listings from the website."""
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            
+            response = requests.get(
+                self.base_url, 
+                headers=headers, 
+                timeout=self.config['monitoring']['timeout_seconds']
+            )
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Find the vacancies table
+            jobs = {}
+            table = soup.find('table')
+            
+            if not table:
+                logger.warning("No table found on the page")
+                return {}
+            
+            # Parse job rows (skip header row)
+            for row in table.find_all('tr')[1:]:  # Skip header
+                cells = row.find_all('td')
+                if len(cells) >= 4:
+                    # Extract job number
+                    job_number = cells[0].get_text(strip=True)
+                    
+                    # Extract job details from the second cell
+                    details_cell = cells[1]
+                    detail_items = details_cell.find_all('li')
+                    
+                    position = ""
+                    department = ""
+                    hours = ""
+                    
+                    for item in detail_items:
+                        text = item.get_text(strip=True)
+                        if text.startswith("Position:"):
+                            position = text.replace("Position:", "").strip()
+                        elif text.startswith("Department:"):
+                            department = text.replace("Department:", "").strip()
+                        elif text.startswith("Hours:"):
+                            hours = text.replace("Hours:", "").strip()
+                    
+                    # Extract additional details from third cell
+                    extra_details_cell = cells[2]
+                    extra_items = extra_details_cell.find_all('li')
+                    
+                    period = ""
+                    rate = ""
+                    closing = ""
+                    
+                    for item in extra_items:
+                        text = item.get_text(strip=True)
+                        if text.startswith("Period:"):
+                            period = text.replace("Period:", "").strip()
+                        elif text.startswith("Rate:"):
+                            rate = text.replace("Rate:", "").strip()
+                        elif text.startswith("Closing:"):
+                            closing = text.replace("Closing:", "").strip()
+                    
+                    # Extract view link
+                    view_link = ""
+                    view_cell = cells[3]
+                    link = view_cell.find('a')
+                    if link and link.get('href'):
+                        href = link.get('href')
+                        # Handle relative URLs
+                        if href.startswith('//'):
+                            view_link = "https:" + href
+                        elif href.startswith('/'):
+                            view_link = "https://studentjobs.library.utoronto.ca" + href
+                        else:
+                            view_link = href
+                    
+                    jobs[job_number] = {
+                        'position': position,
+                        'department': department,
+                        'hours': hours,
+                        'period': period,
+                        'rate': rate,
+                        'closing': closing,
+                        'view_link': view_link,
+                        'scraped_at': datetime.now().isoformat()
+                    }
+            
+            logger.info(f"Successfully scraped {len(jobs)} current job postings")
+            return jobs
+            
+        except requests.RequestException as e:
+            logger.error(f"Error fetching job listings: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error parsing job listings: {e}")
+            return None
+    
+    def send_email_notification(self, new_jobs: Dict[str, Dict]):
+        """Send email notification for new job postings."""
+        if not new_jobs:
+            return
+        
+        email_config = self.config['email']
+        
+        # Validate email configuration
+        if not email_config['sender_email'] or not email_config['recipient_email']:
+            logger.error("Email configuration incomplete. Please update config file.")
+            return
+        
+        try:
+            # Create email content
+            subject = f"New UofT Library Job Posting{'s' if len(new_jobs) > 1 else ''} - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            
+            body = f"🔔 New job posting{'s' if len(new_jobs) > 1 else ''} found on UofT Libraries Student Jobs board!\n\n"
+            
+            for job_num, details in new_jobs.items():
+                body += f"📌 Job Number: {job_num}\n"
+                body += f"   Position: {details['position']}\n"
+                body += f"   Department: {details['department']}\n"
+                body += f"   Hours: {details['hours']}\n"
+                body += f"   Period: {details['period']}\n"
+                body += f"   Rate: {details['rate']}\n"
+                body += f"   Closing: {details['closing']}\n"
+                if details['view_link']:
+                    body += f"   View Details: {details['view_link']}\n"
+            
+            # Create message
+            msg = EmailMessage()
+            msg['From'] = email_config['sender_email']
+            msg['To'] = email_config['recipient_email']
+            msg['Subject'] = subject
+            msg.set_content(body)
+            
+            # Determine connection type based on port and SSL setting
+            smtp_port = email_config['smtp_port']
+            use_ssl = email_config.get('use_ssl', False)
+            
+            logger.info(f"Attempting to send email via {email_config['smtp_server']}:{smtp_port} (SSL: {use_ssl})")
+            
+            # Send email with appropriate connection type
+            if use_ssl or smtp_port == 465:
+                # Use SSL connection for port 465
+                server = smtplib.SMTP_SSL(email_config['smtp_server'], smtp_port, timeout=30)
+                logger.info("Using SSL connection")
+            else:
+                # Use regular SMTP with STARTTLS for port 587
+                server = smtplib.SMTP(email_config['smtp_server'], smtp_port, timeout=30)
+                logger.info("Using STARTTLS connection")
+                server.starttls()
+            
+            # Enable debug output for troubleshooting
+            server.set_debuglevel(0)  # Set to 1 for verbose debugging if needed
+            
+            logger.info("Attempting to log in...")
+            server.login(email_config['sender_email'], email_config['sender_password'])
+            
+            logger.info("Sending email...")
+            server.send_message(msg)
+            server.quit()
+            
+            logger.info(f"[SUCCESS] Email notification sent successfully for {len(new_jobs)} new job(s)")
+            
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(f"[ERROR] SMTP Authentication failed: {e}")
+            logger.error("Please check your email address and password")
+        except smtplib.SMTPServerDisconnected as e:
+            logger.error(f"[ERROR] SMTP Server disconnected: {e}")
+            logger.error("Try switching between ports 587 (STARTTLS) and 465 (SSL)")
+        except smtplib.SMTPConnectError as e:
+            logger.error(f"[ERROR] SMTP Connection error: {e}")
+            logger.error("Check your SMTP server address and port")
+        except smtplib.SMTPRecipientsRefused as e:
+            logger.error(f"[ERROR] Recipients refused: {e}")
+            logger.error("Check the recipient email address")
+        except smtplib.SMTPException as e:
+            logger.error(f"[ERROR] SMTP error: {e}")
+        except ConnectionResetError as e:
+            logger.error(f"[ERROR] Connection reset by server: {e}")
+            logger.error("This often happens with Namecheap. Trying alternative configuration...")
+            # Retry with different settings
+            self._retry_email_with_alternative_config(new_jobs)
+        except Exception as e:
+            logger.error(f"[ERROR] Unexpected error sending email: {e}")
+            logger.error("Check your email configuration and internet connection")
+    
+    def _retry_email_with_alternative_config(self, new_jobs: Dict[str, Dict]):
+        """Retry email sending with alternative SMTP configuration."""
+        email_config = self.config['email']
+        
+        # Try alternative port/SSL combination
+        if email_config['smtp_port'] == 465:
+            alt_port = 587
+            alt_ssl = False
+            logger.info("Retrying with port 587 and STARTTLS...")
         else:
-            print(f"Skipping already archived posting with ID: {file_id}")
-
-    if not new_data:
-        print("No new postings found to add to archive.")
-        return
-
-    # Combine existing and new data
-    combined_data = existing_data + new_data
-
-    # Sort the aggregated data by ID
-    combined_data.sort(key=lambda x: (x["id"] if x["id"] is not None else float('inf')))
-
-    # Write the updated data back to the archive file
-    with open(archive_file, "w", encoding="utf-8") as f:
-        json.dump(combined_data, f, ensure_ascii=False, indent=4)
-
-    print(f"Added {len(new_data)} new postings to {archive_file}")
-
+            alt_port = 465
+            alt_ssl = True
+            logger.info("Retrying with port 465 and SSL...")
+        
+        try:
+            # Create message
+            msg = EmailMessage()
+            msg['From'] = email_config['sender_email']
+            msg['To'] = email_config['recipient_email']
+            msg['Subject'] = f"New UofT Library Job Posting{'s' if len(new_jobs) > 1 else ''}: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            
+            body = f"🔔 New job posting{'s' if len(new_jobs) > 1 else ''} found on UofT Libraries Student Jobs board!\n\n"
+            for job_num, details in new_jobs.items():
+                body += f"📌 Job Number: {job_num}\n"
+                body += f"   Position: {details['position']}\n"
+                body += f"   Department: {details['department']}\n"
+                if details['view_link']:
+                    body += f"   View Details: {details['view_link']}\n"
+                body += "\n"
+            msg.set_content(body)
+            
+            # Try alternative connection
+            if alt_ssl:
+                server = smtplib.SMTP_SSL(email_config['smtp_server'], alt_port, timeout=30)
+            else:
+                server = smtplib.SMTP(email_config['smtp_server'], alt_port, timeout=30)
+                server.starttls()
+            
+            server.login(email_config['sender_email'], email_config['sender_password'])
+            server.send_message(msg)
+            server.quit()
+            
+            logger.info(f"[SUCCESS] Email sent successfully using alternative configuration (port {alt_port})")
+            logger.info(f"[TIP] Consider updating your config to use port {alt_port} with SSL: {alt_ssl}")
+            
+        except Exception as e:
+            logger.error(f"[ERROR] Retry also failed: {e}")
+            logger.error("Please contact Namecheap support or check your email settings")
+    
+    def check_for_updates(self):
+        """Check for new job postings and handle notifications."""
+        logger.info("Checking for job updates...")
+        
+        current_jobs = self.scrape_current_jobs()
+        
+        if current_jobs is None:
+            logger.error("Failed to scrape current jobs")
+            return
+        
+        current_job_numbers = set(current_jobs.keys())
+        
+        # Find new jobs
+        new_job_numbers = current_job_numbers - self.known_jobs
+        new_jobs = {num: current_jobs[num] for num in new_job_numbers}
+        
+        # Find removed jobs
+        removed_job_numbers = self.known_jobs - current_job_numbers
+        
+        # Log findings
+        if new_jobs:
+            logger.info(f"Found {len(new_jobs)} new job posting(s): {list(new_jobs.keys())}")
+            self.send_email_notification(new_jobs)
+        
+        if removed_job_numbers:
+            logger.info(f"Removed {len(removed_job_numbers)} job posting(s): {list(removed_job_numbers)}")
+        
+        if not new_jobs and not removed_job_numbers:
+            logger.info("No changes in job postings")
+        
+        # Update known jobs
+        self.known_jobs = current_job_numbers
+        self.save_known_jobs()
+        
+        logger.info(f"Monitoring {len(self.known_jobs)} total job postings")
+    
+    def run_scheduler(self):
+        """Run the monitoring scheduler."""
+        interval_hours = self.config['monitoring']['check_interval_hours']
+        
+        # Schedule the job checking
+        schedule.every(interval_hours).hours.do(self.check_for_updates)
+        
+        logger.info(f"Job monitor started - checking every {interval_hours} hour(s)")
+        logger.info("Press Ctrl+C to stop monitoring")
+        
+        # Run initial check
+        self.check_for_updates()
+        
+        # Keep the script running
+        try:
+            while True:
+                schedule.run_pending()
+                time.sleep(60)  # Check every minute for scheduled tasks
+        except KeyboardInterrupt:
+            logger.info("Job monitor stopped by user")
 
 def main():
-    vacancies_url = "https://studentjobs.library.utoronto.ca/index.php/student/vacancies"
-    print(f"Checking for new postings at {datetime.datetime.now().isoformat()}...")
-
-    try:
-        new_postings = check_for_new_postings(vacancies_url)
-
-        if new_postings:
-            print(f"Found {len(new_postings)} new posting(s): {new_postings}")
-
-            # Scrape each new posting
-            scraped_files = []
-            for job_id in new_postings:
-                print(f"Scraping job ID {job_id}...")
-                file_path = scrape_posting(job_id)
-                if file_path:
-                    scraped_files.append(file_path)
-                time.sleep(1)  # Be nice to the server
-
-            # Process and parse the scraped files
-            if scraped_files:
-                print("Processing scraped files...")
-                process_new_postings(scraped_files)
-        else:
-            print("No new postings found.")
-
-    except Exception as e:
-        print(f"Error during main execution: {e}")
-
+    """Main function to run the job monitor."""
+    monitor = JobMonitor()
+    
+    # Validate email configuration
+    if not monitor.config['email']['sender_email']:
+        print("\n[ERROR] Email configuration required!")
+        print(f"Please edit {monitor.config_file} and add your email details:")
+        print("- sender_email: Your email address")
+        print("- sender_password: Your email password (use app password for Gmail)")
+        print("- recipient_email: Email address to receive notifications")
+        print("\nExample for Namecheap Private Email:")
+        print('  "sender_email": "your.email@yourdomain.com",')
+        print('  "sender_password": "your_email_password",')
+        print('  "recipient_email": "notification@yourdomain.com"')
+        return
+    
+    # Run the monitor
+    monitor.run_scheduler()
 
 if __name__ == "__main__":
-    while True:
-        main()
-        print(f"Completed check at {datetime.datetime.now().isoformat()}, sleeping for 1 hour...\n")
-        time.sleep(3600)
+    main()
