@@ -15,12 +15,12 @@ jobs:
       uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
     - name: Cache pip dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
@@ -33,7 +33,7 @@ jobs:
         pip install -r requirements.txt
     
     - name: Download previous job data
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: job-data
         path: Jobs-Library/
@@ -52,7 +52,7 @@ jobs:
         python notifier_ci.py
     
     - name: Upload job data
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: job-data
@@ -60,7 +60,7 @@ jobs:
         retention-days: 30
     
     - name: Upload logs
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: job-monitor-logs
