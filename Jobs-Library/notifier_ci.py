@@ -199,26 +199,23 @@ class JobMonitorCI:
         
         try:
             # Create email content
-            subject = f"🆕 UofT Library Job Alert - {len(new_jobs)} New Position{'s' if len(new_jobs) > 1 else ''}"
+            subject = f"UofT Library Job Alert - {len(new_jobs)} New Position{'s' if len(new_jobs) > 1 else ''}"
             
             body = f"🔔 New job posting{'s' if len(new_jobs) > 1 else ''} found on UofT Libraries Student Jobs board!\n\n"
-            body += f"⏰ Checked at: {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}\n"
-            body += f"🌐 Source: {self.base_url}\n\n"
             
             for job_num, details in new_jobs.items():
                 body += f"📌 Job #{job_num}\n"
-                body += f"   👔 Position: {details['position']}\n"
-                body += f"   🏢 Department: {details['department']}\n"
-                body += f"   ⏱️  Hours: {details['hours']}\n"
-                body += f"   📅 Period: {details['period']}\n"
-                body += f"   💰 Rate: {details['rate']}\n"
-                body += f"   ⏳ Closing: {details['closing']}\n"
+                body += f"     👔 Position: {details['position']}\n"
+                body += f"     🏢 Department: {details['department']}\n"
+                body += f"     ⏱️ Hours: {details['hours']}\n"
+                body += f"     📅 Period: {details['period']}\n"
+                body += f"     💰 Rate: {details['rate']}\n"
+                body += f"     ⏳ Closing: {details['closing']}\n"
                 if details['view_link']:
                     body += f"   🔗 Apply: {details['view_link']}\n"
                 body += "\n" + "─" * 50 + "\n\n"
             
-            body += "💡 This is an automated notification from the UofT Library Job Monitor.\n"
-            body += "🤖 Running on GitHub Actions every hour.\n"
+            body += f"Checked at: {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}\n"
             
             # Create message
             msg = EmailMessage()
