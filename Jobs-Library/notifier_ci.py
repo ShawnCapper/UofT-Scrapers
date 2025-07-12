@@ -201,7 +201,7 @@ class JobMonitorCI:
             # Create email content
             subject = f"UofT Library Job Alert - {len(new_jobs)} New Position{'s' if len(new_jobs) > 1 else ''}"
             
-            body = f"🔔 New job posting{'s' if len(new_jobs) > 1 else ''} found on UofT Libraries Student Jobs board!\n\n"
+            body = f"New library job posting{'s' if len(new_jobs) > 1 else ''} found!\n\n"
             
             for job_num, details in new_jobs.items():
                 body += f"📌 Job #{job_num}\n"
@@ -212,10 +212,27 @@ class JobMonitorCI:
                 body += f"     💰 Rate: {details['rate']}\n"
                 body += f"     ⏳ Closing: {details['closing']}\n"
                 if details['view_link']:
-                    body += f"   🔗 Apply: {details['view_link']}\n"
-                body += "\n" + "─" * 50 + "\n\n"
+                    body += f"    🔗 Apply: {details['view_link']}\n"
+                body += "\n" + "─" * 40 + "\n\n"
             
-            body += f"Checked at: {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}\n"
+            # Toronto is UTC-5 (Eastern Time), UTC-4 during DST
+            def is_dst(dt):
+                """Return True if dt is in DST for Toronto (Eastern Time)."""
+                year = dt.year
+                # DST starts: Second Sunday in March
+                dst_start = datetime(year, 3, 8)
+                dst_start += timedelta(days=(6 - dst_start.weekday()))  # Go to next Sunday
+                # DST ends: First Sunday in November
+                dst_end = datetime(year, 11, 1)
+                dst_end += timedelta(days=(6 - dst_end.weekday()))  # Go to next Sunday
+                return dst_start <= dt < dst_end
+
+            from datetime import timedelta
+            utc_now = datetime.utcnow().replace(microsecond=0)
+            offset = -4 if is_dst(utc_now) else -5
+            toronto_time = utc_now + timedelta(hours=offset)
+            tz_label = 'UTC-4 (DST)' if offset == -4 else 'UTC-5'
+            body += f"Checked at: {toronto_time.strftime('%Y-%m-%d %H:%M')} (Toronto time, {tz_label})\n"
             
             # Create message
             msg = EmailMessage()
@@ -241,24 +258,24 @@ class JobMonitorCI:
             server.send_message(msg)
             server.quit()
             
-            logger.info(f"✅ Email notification sent successfully for {len(new_jobs)} new job(s)")
+            logger.info(f"Email notification sent successfully for {len(new_jobs)} new job(s)")
             
         except smtplib.SMTPAuthenticationError as e:
-            logger.error(f"❌ SMTP Authentication failed: {e}")
+            logger.error(f"SMTP Authentication failed: {e}")
             logger.error("Check your email credentials in GitHub Secrets")
         except smtplib.SMTPException as e:
-            logger.error(f"❌ SMTP error: {e}")
+            logger.error(f"SMTP error: {e}")
         except Exception as e:
-            logger.error(f"❌ Error sending email: {e}")
+            logger.error(f"Error sending email: {e}")
     
     def check_for_updates(self):
         """Check for new job postings and handle notifications."""
-        logger.info("🔍 Checking for job updates...")
+        logger.info("Checking for job updates...")
         
         current_jobs = self.scrape_current_jobs()
         
         if current_jobs is None:
-            logger.error("❌ Failed to scrape current jobs")
+            logger.error("Failed to scrape current jobs")
             return False
         
         current_job_numbers = set(current_jobs.keys())
@@ -275,46 +292,49 @@ class JobMonitorCI:
         
         # Log findings
         if is_first_run:
-            logger.info(f"🎯 First run detected - Found {len(current_jobs)} existing job postings")
-            logger.info("📧 No notifications will be sent for existing jobs on first run")
+            logger.info(f"First run detected - Found {len(current_jobs)} existing job postings")
+            logger.info("No notifications will be sent for existing jobs on first run")
         elif new_jobs:
-            logger.info(f"🆕 Found {len(new_jobs)} new job posting(s): {list(new_jobs.keys())}")
+            logger.info(f"Found {len(new_jobs)} new job posting(s): {list(new_jobs.keys())}")
             self.send_email_notification(new_jobs)
         
         if removed_job_numbers:
-            logger.info(f"🗑️  Removed {len(removed_job_numbers)} job posting(s): {list(removed_job_numbers)}")
+            logger.info(f"Removed {len(removed_job_numbers)} job posting(s): {list(removed_job_numbers)}")
         
         if not new_jobs and not removed_job_numbers and not is_first_run:
-            logger.info("✅ No changes in job postings")
+            logger.info("No changes in job postings")
         
-        # Update known jobs
-        self.known_jobs = current_job_numbers
-        self.save_known_jobs()
+        # Update known jobs only if there are changes or it's the first run
+        if new_jobs or removed_job_numbers or is_first_run:
+            self.known_jobs = current_job_numbers
+            self.save_known_jobs()
+            logger.info(f"Updated known jobs file - now monitoring {len(self.known_jobs)} total job postings")
+        else:
+            logger.info(f"No changes detected - known jobs file not updated. Currently monitoring {len(self.known_jobs)} total job postings")
         
-        logger.info(f"📊 Currently monitoring {len(self.known_jobs)} total job postings")
         return True
 
 def main():
     """Main function to run the job monitor in CI environment."""
     try:
-        logger.info("🚀 Starting UofT Library Job Monitor (CI Version)")
+        logger.info("Starting UofT Library Job Monitor (CI Version)")
         monitor = JobMonitorCI()
         
         # Run single check (not a loop since GitHub Actions handles scheduling)
         success = monitor.check_for_updates()
         
         if success:
-            logger.info("✅ Job monitor completed successfully")
+            logger.info("Job monitor completed successfully")
         else:
-            logger.error("❌ Job monitor completed with errors")
+            logger.error("Job monitor completed with errors")
             exit(1)
             
     except ValueError as e:
-        logger.error(f"❌ Configuration error: {e}")
+        logger.error(f"Configuration error: {e}")
         logger.error("Please check your GitHub Secrets configuration")
         exit(1)
     except Exception as e:
-        logger.error(f"❌ Unexpected error: {e}")
+        logger.error(f"Unexpected error: {e}")
         exit(1)
 
 if __name__ == "__main__":
