@@ -403,12 +403,8 @@ def main():
         print("\n[ERROR] Email configuration required!")
         print(f"Please edit {monitor.config_file} and add your email details:")
         print("- sender_email: Your email address")
-        print("- sender_password: Your email password (use app password for Gmail)")
+        print("- sender_password: Your email password")
         print("- recipient_email: Email address to receive notifications")
-        print("\nExample for Namecheap Private Email:")
-        print('  "sender_email": "your.email@yourdomain.com",')
-        print('  "sender_password": "your_email_password",')
-        print('  "recipient_email": "notification@yourdomain.com"')
         return
     
     # Run the monitor
