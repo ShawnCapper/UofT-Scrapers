@@ -9,6 +9,8 @@ on:
 jobs:
   monitor-jobs:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Allow the action to commit and push changes
     
     steps:
     - name: Checkout repository
@@ -32,12 +34,14 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Download previous job data
-      uses: actions/download-artifact@v4
-      with:
-        name: job-data
-        path: Jobs-Library/
-      continue-on-error: true
+    - name: Check for existing job data
+      run: |
+        if [ -f "Jobs-Library/known_jobs.json" ]; then
+          echo "Previous job data found in repository"
+          ls -la Jobs-Library/known_jobs.json
+        else
+          echo "No previous job data found - starting fresh"
+        fi
     
     - name: Run job monitor
       env:
@@ -51,18 +55,19 @@ jobs:
         cd Jobs-Library
         python notifier_ci.py
     
-    - name: Upload job data
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: job-data
-        path: Jobs-Library/known_jobs.json
-        retention-days: 30
+    - name: Commit job data changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add Jobs-Library/known_jobs.json
+        git diff --staged --quiet || git commit -m "Update job monitoring data [skip ci]"
+        git push
+      continue-on-error: true
     
-    - name: Upload logs
+    - name: Upload logs for debugging
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: job-monitor-logs
+        name: job-monitor-logs-${{ github.run_number }}
         path: Jobs-Library/job_monitor.log
-        retention-days: 3
+        retention-days: 7

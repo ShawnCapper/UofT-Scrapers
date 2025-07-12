@@ -263,6 +263,9 @@ class JobMonitorCI:
         
         current_job_numbers = set(current_jobs.keys())
         
+        # Check if this is the first run
+        is_first_run = len(self.known_jobs) == 0
+        
         # Find new jobs
         new_job_numbers = current_job_numbers - self.known_jobs
         new_jobs = {num: current_jobs[num] for num in new_job_numbers}
@@ -271,14 +274,17 @@ class JobMonitorCI:
         removed_job_numbers = self.known_jobs - current_job_numbers
         
         # Log findings
-        if new_jobs:
+        if is_first_run:
+            logger.info(f"🎯 First run detected - Found {len(current_jobs)} existing job postings")
+            logger.info("📧 No notifications will be sent for existing jobs on first run")
+        elif new_jobs:
             logger.info(f"🆕 Found {len(new_jobs)} new job posting(s): {list(new_jobs.keys())}")
             self.send_email_notification(new_jobs)
         
         if removed_job_numbers:
             logger.info(f"🗑️  Removed {len(removed_job_numbers)} job posting(s): {list(removed_job_numbers)}")
         
-        if not new_jobs and not removed_job_numbers:
+        if not new_jobs and not removed_job_numbers and not is_first_run:
             logger.info("✅ No changes in job postings")
         
         # Update known jobs
