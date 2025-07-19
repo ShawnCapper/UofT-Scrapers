@@ -1,0 +1,4 @@
+.ignore/
+.venv/
+job_monitor_config.json
+RANDOM/
