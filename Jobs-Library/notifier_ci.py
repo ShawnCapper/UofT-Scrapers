@@ -280,8 +280,8 @@ class JobMonitorCI:
         
         current_job_numbers = set(current_jobs.keys())
         
-        # Check if this is the first run
-        is_first_run = len(self.known_jobs) == 0
+        # Check if this is the first run (only when there are jobs to track)
+        is_first_run = len(self.known_jobs) == 0 and len(current_job_numbers) > 0
         
         # Find new jobs
         new_job_numbers = current_job_numbers - self.known_jobs

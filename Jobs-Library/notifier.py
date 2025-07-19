@@ -367,11 +367,13 @@ class JobMonitor:
         if not new_jobs and not removed_job_numbers:
             logger.info("No changes in job postings")
         
-        # Update known jobs
-        self.known_jobs = current_job_numbers
-        self.save_known_jobs()
-        
-        logger.info(f"Monitoring {len(self.known_jobs)} total job postings")
+        # Update known jobs only if there are changes
+        if new_jobs or removed_job_numbers:
+            self.known_jobs = current_job_numbers
+            self.save_known_jobs()
+            logger.info(f"Updated known jobs file - now monitoring {len(self.known_jobs)} total job postings")
+        else:
+            logger.info(f"No changes detected - known jobs file not updated. Currently monitoring {len(self.known_jobs)} total job postings")
     
     def run_scheduler(self):
         """Run the monitoring scheduler."""
