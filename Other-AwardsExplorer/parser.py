@@ -284,7 +284,7 @@ def save_to_json(awards: List[Dict[str, Any]], output_file: str) -> None:
 
 def main():
     """Main function to run the parser."""
-    html_file = "AwardExplorer_Undergraduate_2025-07-19.html"
+    html_file = "Graduate.html"
     output_file = "uoft_awards_2025.json"
     
     print(f"Parsing UofT Awards from {html_file}...")

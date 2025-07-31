@@ -191,9 +191,8 @@ def process_directory(directory_path):
 
 def main():
     parser = argparse.ArgumentParser(description="Parse on-campus job postings from HTML files.")
-    parser.add_argument("input_dir", help="Directory containing HTML job postings")
-    parser.add_argument("--output", "-o", default="on_campus_jobs.json",
-                        help="Output JSON file path (default: on_campus_jobs.json)")
+    parser.add_argument("input_dir", nargs="?", default="Jobs", help="Directory containing HTML job postings (default: Jobs)")
+    parser.add_argument("--output", "-o", default="on_campus_jobs.json", help="Output JSON file path (default: on_campus_jobs.json)")
 
     args = parser.parse_args()
 

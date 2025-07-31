@@ -290,10 +290,11 @@ class JobMonitorCI:
         # Find removed jobs
         removed_job_numbers = self.known_jobs - current_job_numbers
         
-        # Log findings
+        # Log findings and send notifications
         if is_first_run:
-            logger.info(f"First run detected - Found {len(current_jobs)} existing job postings")
-            logger.info("No notifications will be sent for existing jobs on first run")
+            logger.info(f"First run detected - Found {len(current_jobs)} job postings")
+            logger.info(f"Sending notifications for {len(new_jobs)} job(s) discovered on first run")
+            self.send_email_notification(new_jobs)
         elif new_jobs:
             logger.info(f"Found {len(new_jobs)} new job posting(s): {list(new_jobs.keys())}")
             self.send_email_notification(new_jobs)
