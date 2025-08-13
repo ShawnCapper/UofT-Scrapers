@@ -1,6 +1,10 @@
 import os
 import json
 import re
+import time
+from pathlib import Path
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 from bs4 import BeautifulSoup, NavigableString
 from typing import Dict, List, Any, Optional
 
@@ -228,8 +232,10 @@ def process_html_files(folder_path: str, existing_posting_ids: set = None) -> Li
 
     # Get all HTML files in the folder
     html_files = [f for f in os.listdir(folder_path) if f.endswith('.html')]
+    
+    print(f"Found {len(html_files)} HTML files to process...")
 
-    for html_file in html_files:
+    for i, html_file in enumerate(html_files, 1):
         file_path = os.path.join(folder_path, html_file)
 
         try:
@@ -324,43 +330,230 @@ def determine_job_environment(accessibility_items):
         # None specified
         return "Unspecified"
 
+class HTMLFileHandler(FileSystemEventHandler):
+    """
+    Event handler for monitoring HTML file changes in the input folder.
+    """
+    
+    def __init__(self, output_path: str, split_output: bool = False):
+        super().__init__()
+        self.output_path = output_path
+        self.split_output = split_output
+        self.processed_files = set()
+        self.existing_posting_ids = set()
+        self._load_existing_data()
+    
+    def _load_existing_data(self):
+        """Load existing posting IDs to avoid duplicates."""
+        if self.split_output:
+            if os.path.isdir(self.output_path):
+                for fname in os.listdir(self.output_path):
+                    if fname.endswith('.json'):
+                        try:
+                            with open(os.path.join(self.output_path, fname), 'r', encoding='utf-8') as jf:
+                                item = json.load(jf)
+                                if 'posting_id' in item:
+                                    self.existing_posting_ids.add(item['posting_id'])
+                        except Exception:
+                            continue
+        else:
+            if os.path.exists(self.output_path):
+                try:
+                    with open(self.output_path, 'r', encoding='utf-8') as json_file:
+                        existing_data = json.load(json_file)
+                        self.existing_posting_ids = {item.get('posting_id') for item in existing_data if 'posting_id' in item}
+                except Exception:
+                    pass
+    
+    def on_created(self, event):
+        """Handle file creation events."""
+        if not event.is_directory and event.src_path.endswith('.html'):
+            self._process_new_file(event.src_path)
+    
+    def on_modified(self, event):
+        """Handle file modification events."""
+        if not event.is_directory and event.src_path.endswith('.html'):
+            self._process_new_file(event.src_path)
+    
+    def _process_new_file(self, file_path: str):
+        """Process a single new or modified HTML file."""
+        # Add a small delay to ensure file is fully written
+        time.sleep(1)
+        
+        if file_path in self.processed_files:
+            return
+            
+        try:
+            print(f"Processing new file: {os.path.basename(file_path)}")
+            
+            with open(file_path, 'r', encoding='utf-8') as file:
+                html_content = file.read()
+            
+            posting_info = extract_posting_info(html_content, os.path.basename(file_path))
+            
+            if not posting_info:
+                print(f"No job data found in: {os.path.basename(file_path)}")
+                return
+            
+            # Check for posting ID
+            if 'posting_id' not in posting_info:
+                print(f"Warning: No posting ID found for {os.path.basename(file_path)}")
+            else:
+                posting_id = posting_info['posting_id']
+                
+                if posting_id in self.existing_posting_ids:
+                    print(f"Skipping existing posting ID {posting_id}")
+                    return
+                
+                self.existing_posting_ids.add(posting_id)
+            
+            # Save the new posting
+            if self.split_output:
+                pid = posting_info.get('posting_id', 'unknown')
+                outpath = os.path.join(self.output_path, f"{pid}.json")
+                with open(outpath, 'w', encoding='utf-8') as jf:
+                    json.dump(posting_info, jf, indent=4)
+                print(f"Saved job posting to: {outpath}")
+            else:
+                # Load existing data, add new posting, and save
+                existing_data = []
+                if os.path.exists(self.output_path):
+                    try:
+                        with open(self.output_path, 'r', encoding='utf-8') as json_file:
+                            existing_data = json.load(json_file)
+                    except Exception:
+                        pass
+                
+                existing_data.append(posting_info)
+                existing_data.sort(key=lambda x: x.get('posting_id', float('inf')))
+                
+                with open(self.output_path, 'w', encoding='utf-8') as json_file:
+                    json.dump(existing_data, json_file, indent=4)
+                print(f"Added new job posting to: {self.output_path}")
+            
+            self.processed_files.add(file_path)
+            
+        except Exception as e:
+            print(f"Error processing {os.path.basename(file_path)}: {str(e)}")
+
+def run_continuous_monitor(folder_path: str, output_path: str, split_output: bool = False):
+    """
+    Run continuous monitoring of the folder for new HTML files.
+    
+    Args:
+        folder_path: Path to monitor for HTML files
+        output_path: Path for output JSON file(s)
+        split_output: Whether to split output into individual files
+    """
+    print(f"Starting continuous monitoring of: {folder_path}")
+    print(f"Output: {output_path}")
+    print("Press Ctrl+C to stop monitoring...")
+    
+    # Create output directory if using split output
+    if split_output:
+        os.makedirs(output_path, exist_ok=True)
+    
+    # Create event handler and observer
+    event_handler = HTMLFileHandler(output_path, split_output)
+    observer = Observer()
+    observer.schedule(event_handler, folder_path, recursive=False)
+    
+    # Process any existing files first
+    print("Processing existing files...")
+    initial_results = process_html_files(folder_path, event_handler.existing_posting_ids)
+    
+    if initial_results:
+        if split_output:
+            for job in initial_results:
+                pid = job.get('posting_id', 'unknown')
+                outpath = os.path.join(output_path, f"{pid}.json")
+                with open(outpath, 'w', encoding='utf-8') as jf:
+                    json.dump(job, jf, indent=4)
+            print(f"Processed {len(initial_results)} existing files")
+        else:
+            existing_data = []
+            if os.path.exists(output_path):
+                try:
+                    with open(output_path, 'r', encoding='utf-8') as json_file:
+                        existing_data = json.load(json_file)
+                except Exception:
+                    pass
+            
+            combined_results = existing_data + initial_results
+            combined_results.sort(key=lambda x: x.get('posting_id', float('inf')))
+            
+            with open(output_path, 'w', encoding='utf-8') as json_file:
+                json.dump(combined_results, json_file, indent=4)
+            print(f"Added {len(initial_results)} new job postings")
+    
+    # Start monitoring
+    observer.start()
+    
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\nStopping monitor...")
+        observer.stop()
+    
+    observer.join()
+    print("Monitor stopped.")
+
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Parse University of Toronto Work Study job postings from HTML files.")
     parser.add_argument("folder_path", help="Path to the folder containing HTML files")
     parser.add_argument("--output", default="work_study_jobs.json", help="Output JSON file path")
+    parser.add_argument("--split", action="store_true", help="Write each job to its own JSON file in the output directory")
+    parser.add_argument("--monitor", action="store_true", help="Continuously monitor folder for new HTML files")
 
     args = parser.parse_args()
 
-    # Check if output file exists and load existing data
-    existing_data = []
-    existing_posting_ids = set()
-    if os.path.exists(args.output):
-        try:
-            with open(args.output, 'r', encoding='utf-8') as json_file:
-                existing_data = json.load(json_file)
-                existing_posting_ids = {item.get('posting_id') for item in existing_data if 'posting_id' in item}
-                print(f"Loaded {len(existing_data)} existing job postings.")
-        except Exception as e:
-            print(f"Error loading existing data from {args.output}: {str(e)}")
-            print("Starting with empty dataset.")
+    if not os.path.exists(args.folder_path):
+        print(f"Error: The folder path '{args.folder_path}' does not exist.")
+        return
 
-    # Process the HTML files, skipping ones with posting IDs we already have
-    new_results = process_html_files(args.folder_path, existing_posting_ids)
+    if args.split:
+        if os.path.isfile(args.output):
+            print(f"Error: The output path '{args.output}' exists as a file. Please specify a directory for split output.")
+            return
+    else:
+        # For non-split output, ensure the directory exists
+        output_dir = os.path.dirname(args.output)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            print(f"Created output directory: {output_dir}")
 
-    # Combine existing data with new results
-    combined_results = existing_data + new_results
+    if args.monitor:
+        # Run the continuous monitor function
+        run_continuous_monitor(args.folder_path, args.output, args.split)
+    else:
+        # Process files once and exit
+        results = process_html_files(args.folder_path)
 
-    # Sort the combined results by posting_id
-    combined_results.sort(key=lambda x: x.get('posting_id', float('inf')))
+        if not results:
+            print("No valid job postings found in the HTML files.")
+            return
 
-    # Save the combined results to the JSON file
-    with open(args.output, 'w', encoding='utf-8') as json_file:
-        json.dump(combined_results, json_file, indent=4)
+        if args.split:
+            os.makedirs(args.output, exist_ok=True)
 
-    print(f"Added {len(new_results)} new job postings.")
-    print(f"Total of {len(combined_results)} job postings saved to {args.output}")
+            # Write each job to its own JSON file
+            for job in results:
+                posting_id = job.get('posting_id', 'unknown')
+                output_file = os.path.join(args.output, f"{posting_id}.json")
+
+                with open(output_file, 'w', encoding='utf-8') as json_file:
+                    json.dump(job, json_file, indent=4)
+
+            print(f"Successfully processed {len(results)} job postings into {args.output}/")
+        else:
+            # Write all results to a single JSON file
+            with open(args.output, 'w', encoding='utf-8') as json_file:
+                json.dump(results, json_file, indent=4)
+
+            print(f"Successfully processed {len(results)} job postings and saved to {args.output}")
 
 if __name__ == "__main__":
     main()
