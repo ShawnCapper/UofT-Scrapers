@@ -232,10 +232,8 @@ def process_html_files(folder_path: str, existing_posting_ids: set = None) -> Li
 
     # Get all HTML files in the folder
     html_files = [f for f in os.listdir(folder_path) if f.endswith('.html')]
-    
-    print(f"Found {len(html_files)} HTML files to process...")
 
-    for i, html_file in enumerate(html_files, 1):
+    for html_file in html_files:
         file_path = os.path.join(folder_path, html_file)
 
         try:
