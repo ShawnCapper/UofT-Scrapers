@@ -9,3 +9,14 @@
 2025-08-17 16:20:07,656 - INFO - Successfully scraped data for 4 campuses
 2025-08-17 16:20:07,656 - INFO - Total devices: 24118
 2025-08-17 16:20:07,657 - INFO - Scraping completed successfully
+2025-08-17 16:34:57,731 - INFO - Fetching data from https://status.wireless.utoronto.ca/
+2025-08-17 16:34:57,907 - INFO - Found usage data table
+2025-08-17 16:34:57,908 - INFO - Parsed data for TOTAL: 12019 devices
+2025-08-17 16:34:57,908 - INFO - Parsed data for St. George: 5798 devices
+2025-08-17 16:34:57,908 - INFO - Parsed data for UTM: 5434 devices
+2025-08-17 16:34:57,908 - INFO - Parsed data for UTSC: 787 devices
+2025-08-17 16:34:57,912 - INFO - Data saved to data/wireless_usage_20250817_163457.csv
+2025-08-17 16:34:57,913 - INFO - Data appended to data/wireless_usage_historical.csv
+2025-08-17 16:34:57,913 - INFO - Successfully scraped data for 4 campuses
+2025-08-17 16:34:57,913 - INFO - Total devices: 24038
+2025-08-17 16:34:57,913 - INFO - Scraping completed successfully
