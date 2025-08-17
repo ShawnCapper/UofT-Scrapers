@@ -13,6 +13,8 @@ on:
 jobs:
   scrape-wireless-usage:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Allow the action to commit and push changes
     
     steps:
     - name: Checkout repository
