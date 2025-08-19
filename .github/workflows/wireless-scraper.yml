@@ -3,7 +3,7 @@ name: UofT Wireless Usage Scraper
 on:
   schedule:
     # Run every minute
-    - cron: '* * * * *'
+  - cron: '*/10 * * * *'
   workflow_dispatch:  # Allow manual triggering
   push:
     paths:
@@ -13,8 +13,6 @@ on:
 jobs:
   scrape-wireless-usage:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write  # Allow the action to commit and push changes
     
     steps:
     - name: Checkout repository
@@ -132,7 +130,7 @@ jobs:
     
     - name: Upload artifacts
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: wireless-usage-data
         path: |

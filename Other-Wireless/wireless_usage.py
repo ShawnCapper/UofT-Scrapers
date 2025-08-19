@@ -13,8 +13,8 @@ from datetime import datetime
 import os
 import sys
 import time
+import argparse
 import logging
-import urllib3
 
 # Configure logging
 logging.basicConfig(
@@ -184,30 +184,34 @@ class WirelessUsageScraper:
         if not usage_data:
             logger.warning("No data to save")
             return
-        
+        # Default to single historical file in data/ so each run appends to the same file
         if filename is None:
-            timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"wireless_usage_{timestamp_str}.csv"
-        
+            filename = "data/wireless_usage_historical.csv"
+
         # Ensure data directory exists
         os.makedirs('data', exist_ok=True)
-        filepath = os.path.join('data', filename)
-        
+        filepath = filename
+
         # Convert to DataFrame for easy CSV writing
         df = pd.DataFrame(list(usage_data.values()))
-        
+
         # Reorder columns
         column_order = ['timestamp', 'campus', 'now_usage', 'now_percentage', 
                        'daily_peak', 'weekly_peak', 'monthly_peak', 
                        'yearly_peak', 'yearly_percentage']
-        
+
         # Only include columns that exist
         existing_columns = [col for col in column_order if col in df.columns]
         df = df[existing_columns]
-        
-        df.to_csv(filepath, index=False)
+
+        # Append to historical file if it exists, otherwise create it with headers
+        if os.path.exists(filepath):
+            df.to_csv(filepath, mode='a', header=False, index=False)
+        else:
+            df.to_csv(filepath, index=False)
+
         logger.info(f"Data saved to {filepath}")
-        
+
         return filepath
     
     def append_to_historical_csv(self, usage_data, historical_file="data/wireless_usage_historical.csv"):
@@ -241,9 +245,8 @@ class WirelessUsageScraper:
                 logger.error("No usage data found")
                 return False
             
-            # Save data
-            timestamp_file = self.save_to_csv(usage_data)
-            self.append_to_historical_csv(usage_data)
+            # Save data to a single historical CSV (append)
+            saved_file = self.save_to_csv(usage_data)
             
             # Print summary
             total_devices = sum(data['now_usage'] for data in usage_data.values() 
@@ -259,14 +262,56 @@ class WirelessUsageScraper:
 
 def main():
     """Main function for command line usage"""
+    parser = argparse.ArgumentParser(description='Wireless usage scraper runner')
+    parser.add_argument('--continuous', action='store_true', help='Run continuously, minute-by-minute (default: run once)')
+    parser.add_argument('--interval', type=int, default=60, help='Interval in seconds between scrapes when running continuously (default: 60)')
+    parser.add_argument('--no-align', action='store_true', help='Do not align runs to the interval boundary (only relevant for continuous mode)')
+    args = parser.parse_args()
+
     scraper = WirelessUsageScraper()
-    
-    if scraper.scrape_and_save():
-        logger.info("Scraping completed successfully")
+
+    # Default behavior: run once. Use --continuous to run minute-by-minute.
+    if not args.continuous:
+        success = scraper.scrape_and_save()
+        if success:
+            logger.info("Scraping completed successfully (once)")
+            sys.exit(0)
+        else:
+            logger.error("Scraping failed (once)")
+            sys.exit(1)
+
+    # Continuous run (only entered when --continuous is provided)
+    interval = max(1, args.interval)
+    try:
+        logger.info(f"Starting continuous scraping every {interval} seconds")
+        while True:
+            # Optionally align to wall-clock interval (e.g., start at top of minute)
+            if not args.no_align:
+                # Calculate seconds until next aligned boundary
+                now = time.time()
+                next_boundary = ((now // interval) + 1) * interval
+                wait = next_boundary - now
+                if wait > 0:
+                    logger.info(f"Waiting {wait:.1f}s until next aligned run")
+                    time.sleep(wait)
+
+            start = time.time()
+            try:
+                scraper.scrape_and_save()
+            except Exception as e:
+                logger.error(f"Unhandled error during scrape: {e}")
+
+            elapsed = time.time() - start
+            # Sleep remaining time until next interval (only if not aligning above)
+            if args.no_align:
+                sleep_time = max(0, interval - elapsed)
+                if sleep_time > 0:
+                    logger.info(f"Sleeping {sleep_time:.1f}s until next run")
+                    time.sleep(sleep_time)
+
+    except KeyboardInterrupt:
+        logger.info("Received KeyboardInterrupt, shutting down")
         sys.exit(0)
-    else:
-        logger.error("Scraping failed")
-        sys.exit(1)
 
 if __name__ == "__main__":
     main()
