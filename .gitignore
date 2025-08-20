@@ -3,3 +3,5 @@
 job_monitor_config.json
 RANDOM/
 Jobs/
+*.csv
+*.log

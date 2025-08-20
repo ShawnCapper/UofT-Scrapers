@@ -17,15 +17,22 @@ import argparse
 import logging
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('wireless_scraper.log'),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+# File handler keeps INFO and above
+file_handler = logging.FileHandler('wireless_scraper.log')
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(formatter)
+
+# Console/stream handler is quieter by default (WARNING+). Use --verbose to enable INFO on console.
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setLevel(logging.WARNING)
+stream_handler.setFormatter(formatter)
+
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(file_handler)
+logger.addHandler(stream_handler)
 
 class WirelessUsageScraper:
     def __init__(self):
@@ -178,6 +185,50 @@ class WirelessUsageScraper:
             return []
         numbers = re.findall(r'\d+', text.replace(',', ''))
         return [int(num) for num in numbers]
+
+    def build_combined_record(self, usage_data, timestamp=None):
+        """Build a single combined record containing only now_usage for St. George, UTM, and UTSC.
+
+        Returns a dict suitable for DataFrame(list(...)) with one entry.
+        """
+        # Normalize keys and search for campus variants
+        def find_usage(keywords):
+            for k, v in usage_data.items():
+                if not k:
+                    continue
+                kn = k.upper()
+                if any(kw in kn for kw in keywords):
+                    return v.get('now_usage') if isinstance(v, dict) else None
+            return None
+
+        if timestamp is None:
+            # try to find timestamp from any campus entry
+            timestamp = None
+            for v in usage_data.values():
+                if isinstance(v, dict) and 'timestamp' in v:
+                    timestamp = v['timestamp']
+                    break
+            if timestamp is None:
+                from datetime import datetime
+                timestamp = datetime.now()
+
+        record = {
+            'timestamp': timestamp,
+            'st_george_now': find_usage(['GEORGE', 'ST.GEORGE', 'ST. GEORGE']),
+            'utm_now': find_usage(['UTM']),
+            'utsc_now': find_usage(['UTSC'])
+        }
+
+        return {'combined': record}
+
+    def print_combined_to_console(self, stg, utm, utsc, timestamp=None):
+        """Print a single timestamped INFO-formatted line to console with per-campus now_usage."""
+        from datetime import datetime
+        ts = timestamp or datetime.now()
+        # Format timestamp with milliseconds to match logging format: YYYY-mm-dd HH:MM:SS,mmm
+        ms = int(ts.microsecond / 1000)
+        timestr = ts.strftime('%Y-%m-%d %H:%M:%S') + f',{ms:03d}'
+        print(f"{timestr} - INFO - Per-campus now_usage -> StGeorge: {stg}, UTM: {utm}, UTSC: {utsc}")
     
     def save_to_csv(self, usage_data, filename=None):
         """Save usage data to CSV file"""
@@ -195,19 +246,54 @@ class WirelessUsageScraper:
         # Convert to DataFrame for easy CSV writing
         df = pd.DataFrame(list(usage_data.values()))
 
-        # Reorder columns
-        column_order = ['timestamp', 'campus', 'now_usage', 'now_percentage', 
-                       'daily_peak', 'weekly_peak', 'monthly_peak', 
-                       'yearly_peak', 'yearly_percentage']
+        # Determine columns to write. Support both legacy per-campus rows and
+        # the new combined single-row format which contains only now_usage for
+        # St. George, UTM, and UTSC.
+        if any(col in df.columns for col in ('st_george_now', 'utm_now', 'utsc_now')):
+            column_order = ['timestamp', 'st_george_now', 'utm_now', 'utsc_now']
+        else:
+            # Reorder columns for legacy format
+            column_order = ['timestamp', 'campus', 'now_usage', 'now_percentage', 
+                           'daily_peak', 'weekly_peak', 'monthly_peak', 
+                           'yearly_peak', 'yearly_percentage']
 
-        # Only include columns that exist
+        # Only include columns that exist in the DataFrame
         existing_columns = [col for col in column_order if col in df.columns]
         df = df[existing_columns]
 
         # Append to historical file if it exists, otherwise create it with headers
         if os.path.exists(filepath):
-            df.to_csv(filepath, mode='a', header=False, index=False)
+            # Special handling for combined single-row CSV: if the existing file
+            # doesn't have the expected combined headers, back it up and recreate
+            # the file so headers are preserved.
+            if any(col in df.columns for col in ('st_george_now', 'utm_now', 'utsc_now')):
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        first_line = f.readline().strip()
+                except Exception:
+                    first_line = ''
+
+                expected_headers = ','.join(column_order)
+                # If headers don't match (or file contains a single "timestamp" header), backup and recreate
+                if not all(h in first_line for h in ['st_george_now', 'utm_now', 'utsc_now']):
+                    backup_path = filepath + '.bak'
+                    try:
+                        os.replace(filepath, backup_path)
+                        logger.info(f"Backed up existing file to {backup_path} and will write new headers")
+                    except Exception as e:
+                        logger.warning(f"Could not backup existing file: {e}; will attempt to append without headers")
+                        # Fall back to appending without header
+                        df.to_csv(filepath, mode='a', header=False, index=False)
+                    else:
+                        # Write new file with headers
+                        df.to_csv(filepath, index=False)
+                else:
+                    df.to_csv(filepath, mode='a', header=False, index=False)
+            else:
+                # Legacy behavior: append rows without headers
+                df.to_csv(filepath, mode='a', header=False, index=False)
         else:
+            # Create new file with headers
             df.to_csv(filepath, index=False)
 
         logger.info(f"Data saved to {filepath}")
@@ -223,11 +309,38 @@ class WirelessUsageScraper:
         
         # Convert to DataFrame
         df = pd.DataFrame(list(usage_data.values()))
+
+        # If combined single-row format, ensure we only write the combined columns
+        if any(col in df.columns for col in ('st_george_now', 'utm_now', 'utsc_now')):
+            cols = [c for c in ['timestamp', 'st_george_now', 'utm_now', 'utsc_now'] if c in df.columns]
+            df = df[cols]
         
         # Check if historical file exists
         if os.path.exists(historical_file):
-            # Append to existing file
-            df.to_csv(historical_file, mode='a', header=False, index=False)
+            # If combined-format and existing file doesn't have combined headers,
+            # back it up and recreate so headers are present
+            if any(col in df.columns for col in ('st_george_now', 'utm_now', 'utsc_now')):
+                try:
+                    with open(historical_file, 'r', encoding='utf-8') as f:
+                        first_line = f.readline().strip()
+                except Exception:
+                    first_line = ''
+
+                if not all(h in first_line for h in ['st_george_now', 'utm_now', 'utsc_now']):
+                    backup_path = historical_file + '.bak'
+                    try:
+                        os.replace(historical_file, backup_path)
+                        logger.info(f"Backed up existing historical file to {backup_path} and will write new headers")
+                    except Exception as e:
+                        logger.warning(f"Could not backup historical file: {e}; will attempt to append without headers")
+                        df.to_csv(historical_file, mode='a', header=False, index=False)
+                    else:
+                        df.to_csv(historical_file, index=False)
+                else:
+                    df.to_csv(historical_file, mode='a', header=False, index=False)
+            else:
+                # Append to existing file
+                df.to_csv(historical_file, mode='a', header=False, index=False)
         else:
             # Create new file with headers
             df.to_csv(historical_file, index=False)
@@ -244,16 +357,29 @@ class WirelessUsageScraper:
             if not usage_data:
                 logger.error("No usage data found")
                 return False
-            
-            # Save data to a single historical CSV (append)
-            saved_file = self.save_to_csv(usage_data)
-            
-            # Print summary
-            total_devices = sum(data['now_usage'] for data in usage_data.values() 
-                              if data['now_usage'] is not None)
-            logger.info(f"Successfully scraped data for {len(usage_data)} campuses")
-            logger.info(f"Total devices: {total_devices}")
-            
+
+            # Build a single combined record with only the now_usage values
+            combined = self.build_combined_record(usage_data)
+
+            # Save the single-row combined data to the historical CSV (append)
+            saved_file = self.save_to_csv(combined)
+
+            # Print summary for the three campuses we track
+            stg = combined['combined'].get('st_george_now')
+            utm = combined['combined'].get('utm_now')
+            utsc = combined['combined'].get('utsc_now')
+            total_devices = sum(x for x in (stg, utm, utsc) if x is not None)
+            # Log full details to file
+            logger.info("Successfully scraped combined data for St. George, UTM, UTSC")
+            logger.info(f"Per-campus now_usage -> StGeorge: {stg}, UTM: {utm}, UTSC: {utsc}")
+            logger.info(f"Total devices (sum of available values): {total_devices}")
+            # Print only the single combined summary line to console
+            try:
+                self.print_combined_to_console(stg, utm, utsc, combined['combined'].get('timestamp'))
+            except Exception:
+                # Fallback to a simple print if formatting fails
+                print(f"Per-campus now_usage -> StGeorge: {stg}, UTM: {utm}, UTSC: {utsc}")
+
             return True
             
         except Exception as e:
@@ -269,6 +395,8 @@ def main():
     args = parser.parse_args()
 
     scraper = WirelessUsageScraper()
+
+    # Keep console output minimal; we'll print a single combined INFO line below.
 
     # Default behavior: run once. Use --continuous to run minute-by-minute.
     if not args.continuous:
