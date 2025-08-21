@@ -5,3 +5,5 @@ RANDOM/
 Jobs/
 *.csv
 *.log
+*.env
+*.json
